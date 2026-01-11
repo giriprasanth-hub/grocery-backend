@@ -176,25 +176,32 @@ exports.getActiveProductsForCustomer = async (req, res) => {
         category: 1,
         mrp: 1,
         sellingPrice: 1,
-        discountAmount: 1,
-        discountPercent: 1,
         image: 1,
         stock: 1,
       }
     );
 
-    const formatted = products.map((p) => ({
-      _id: p._id,
-      name: p.name,
-      category: p.category,
-      image: p.image,
-      stock: p.stock,
+    const formatted = products.map((p) => {
+      const mrp = p.mrp;
+      const price = p.sellingPrice;
 
-      mrp: p.mrp,
-      price: p.sellingPrice, // Flutter uses `price`
-      discountAmount: p.discountAmount,
-      discountPercent: p.discountPercent,
-    }));
+      const discountAmount = mrp - price;
+      const discountPercent =
+        mrp > 0 ? Math.round((discountAmount / mrp) * 100) : 0;
+
+      return {
+        _id: p._id,
+        name: p.name,
+        category: p.category,
+        image: p.image,
+        stock: p.stock,
+
+        mrp,
+        price,
+        discountAmount,
+        discountPercent,
+      };
+    });
 
     res.json(formatted);
   } catch (err) {
