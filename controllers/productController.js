@@ -140,8 +140,7 @@ exports.getActiveProductsForCustomer = async (req, res) => {
       {
         name: 1,
         category: 1,
-        mrp: 1,
-        sellingPrice: 1,
+        price: 1,          // 👈 send price
         discountAmount: 1,
         discountPercent: 1,
         image: 1,
@@ -149,7 +148,20 @@ exports.getActiveProductsForCustomer = async (req, res) => {
       }
     );
 
-    res.json(products);
+    // map price → sellingPrice
+    const formatted = products.map(p => ({
+      _id: p._id,
+      name: p.name,
+      category: p.category,
+      image: p.image,
+      stock: p.stock,
+      sellingPrice: p.price,      // 👈 important
+      mrp: p.price + p.discountAmount, // optional
+      discountAmount: p.discountAmount,
+      discountPercent: p.discountPercent,
+    }));
+
+    res.json(formatted);
   } catch (err) {
     res.status(500).json({ message: 'Failed to load products' });
   }
