@@ -58,18 +58,21 @@ const productSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-productSchema.pre('save', function (next) {
+productSchema.pre("save", function (next) {
+  if (this.mrp <= 0 || this.sellingPrice <= 0) {
+    this.discountAmount = 0;
+    this.discountPercent = 0;
+    return next();
+  }
+
   this.discountAmount = this.mrp - this.sellingPrice;
 
-  if (this.mrp > 0) {
-    this.discountPercent = Math.round(
-      (this.discountAmount / this.mrp) * 100
-    );
-  } else {
-    this.discountPercent = 0;
-  }
+  this.discountPercent = Math.round(
+    (this.discountAmount / this.mrp) * 100
+  );
 
   next();
 });
+
 
 module.exports = mongoose.model('Product', productSchema);
