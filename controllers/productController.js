@@ -140,18 +140,23 @@ exports.getActiveProductsForCustomer = async (req, res) => {
       {
         name: 1,
         category: 1,
-        price: 1,          // 🔥 REAL DB FIELD
-        image: 1,
-        stock: 1,
+        price: 1,          // original selling price
+        mrp: 1,
         discountAmount: 1,
         discountPercent: 1,
+        image: 1,
+        stock: 1,
       }
     );
 
+    // 🔥 Convert DB format → Flutter format
     const formatted = products.map((p) => {
-      const sellingPrice = p.price || 0;
-      const discount = p.discountAmount || 0;
-      const mrp = sellingPrice + discount;
+      const mrp = p.mrp || p.price;
+      const sellingPrice = p.price;
+
+      const discountAmount = mrp - sellingPrice;
+      const discountPercent =
+        mrp > 0 ? Math.round((discountAmount / mrp) * 100) : 0;
 
       return {
         _id: p._id,
@@ -160,17 +165,17 @@ exports.getActiveProductsForCustomer = async (req, res) => {
         image: p.image,
         stock: p.stock,
 
-        sellingPrice: sellingPrice,
         mrp: mrp,
-        discountAmount: discount,
-        discountPercent: p.discountPercent || 0,
+        sellingPrice: sellingPrice,
+        discountAmount: discountAmount,
+        discountPercent: discountPercent,
       };
     });
 
     res.json(formatted);
   } catch (err) {
-    console.error("Customer product API error:", err);
-    res.status(500).json({ message: "Failed to load products" });
+    console.error(err);
+    res.status(500).json({ message: 'Failed to load products' });
   }
 };
 
