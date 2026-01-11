@@ -133,4 +133,26 @@ exports.updateProduct = async (req, res) => {
   }
 };
 
+// GET PRODUCTS FOR CUSTOMER APP
+exports.getActiveProductsForCustomer = async (req, res) => {
+  try {
+    const products = await Product.find(
+      { isActive: true, stock: { $gt: 0 } }, // 🔒 hide out-of-stock
+      {
+        name: 1,
+        category: 1,
+        mrp: 1,
+        sellingPrice: 1,
+        discountAmount: 1,
+        discountPercent: 1,
+        image: 1,
+        stock: 1,
+      }
+    ).sort({ createdAt: -1 });
+
+    res.json(products);
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to load products' });
+  }
+};
 

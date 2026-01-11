@@ -7,22 +7,49 @@ const productSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
-    price: {
-      type: Number,
-      required: true,
-    },
+
     category: {
       type: String,
       required: true,
     },
-    image: {
-      type: String, // future use
-      default: '',
+
+    // 💰 Pricing
+    mrp: {
+      type: Number,
+      required: true,
     },
+
+    sellingPrice: {
+      type: Number,
+      required: true,
+    },
+
+    purchasePrice: {
+      type: Number,
+      required: true,
+    },
+
+    discountAmount: {
+      type: Number,
+      default: 0,
+    },
+
+    discountPercent: {
+      type: Number,
+      default: 0,
+    },
+
+    // 📦 Inventory
     stock: {
       type: Number,
       default: 0,
     },
+
+    image: {
+      type: String,
+      default: '',
+    },
+
     isActive: {
       type: Boolean,
       default: true,
@@ -30,5 +57,19 @@ const productSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+productSchema.pre('save', function (next) {
+  this.discountAmount = this.mrp - this.sellingPrice;
+
+  if (this.mrp > 0) {
+    this.discountPercent = Math.round(
+      (this.discountAmount / this.mrp) * 100
+    );
+  } else {
+    this.discountPercent = 0;
+  }
+
+  next();
+});
 
 module.exports = mongoose.model('Product', productSchema);

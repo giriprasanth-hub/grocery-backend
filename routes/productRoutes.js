@@ -7,7 +7,8 @@ const {
   addBulkProducts,
   getLowStockCount,
   deleteProduct,
-  updateProduct
+  updateProduct,
+  getActiveProductsForCustomer
 } = require('../controllers/productController');
 
 // Routes
@@ -17,5 +18,7 @@ router.post('/bulk', addBulkProducts);
 router.get('/low-stock/count', getLowStockCount);
 router.delete('/:id', deleteProduct);
 router.put('/:id', updateProduct);
+router.get('/customer', getActiveProductsForCustomer);
+
 
 module.exports = router;
