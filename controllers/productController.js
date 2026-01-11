@@ -47,7 +47,10 @@ exports.addBulkProducts = async (req, res) => {
       };
     });
 
-    await Product.insertMany(formattedProducts);
+    for (const p of formattedProducts) {
+  const product = new Product(p);
+  await product.save(); // this runs pre('save') hook
+}
 
     res.status(201).json({
       message: "Bulk products added successfully",
