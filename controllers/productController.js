@@ -166,7 +166,7 @@ exports.getActiveProductsForCustomer = async (req, res) => {
         stock: p.stock,
 
         mrp: mrp,
-        sellingPrice: sellingPrice,
+        price: sellingPrice,   // VERY IMPORTANT
         discountAmount: discountAmount,
         discountPercent: discountPercent,
       };
