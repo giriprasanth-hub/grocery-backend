@@ -140,30 +140,37 @@ exports.getActiveProductsForCustomer = async (req, res) => {
       {
         name: 1,
         category: 1,
-        price: 1,          // 👈 send price
-        discountAmount: 1,
-        discountPercent: 1,
+        price: 1,          // 🔥 REAL DB FIELD
         image: 1,
         stock: 1,
+        discountAmount: 1,
+        discountPercent: 1,
       }
     );
 
-    // map price → sellingPrice
-    const formatted = products.map(p => ({
-      _id: p._id,
-      name: p.name,
-      category: p.category,
-      image: p.image,
-      stock: p.stock,
-      sellingPrice: p.price,      // 👈 important
-      mrp: p.price + p.discountAmount, // optional
-      discountAmount: p.discountAmount,
-      discountPercent: p.discountPercent,
-    }));
+    const formatted = products.map((p) => {
+      const sellingPrice = p.price || 0;
+      const discount = p.discountAmount || 0;
+      const mrp = sellingPrice + discount;
+
+      return {
+        _id: p._id,
+        name: p.name,
+        category: p.category,
+        image: p.image,
+        stock: p.stock,
+
+        sellingPrice: sellingPrice,
+        mrp: mrp,
+        discountAmount: discount,
+        discountPercent: p.discountPercent || 0,
+      };
+    });
 
     res.json(formatted);
   } catch (err) {
-    res.status(500).json({ message: 'Failed to load products' });
+    console.error("Customer product API error:", err);
+    res.status(500).json({ message: "Failed to load products" });
   }
 };
 
