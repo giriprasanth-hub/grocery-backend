@@ -136,26 +136,22 @@ exports.updateProduct = async (req, res) => {
 exports.getActiveProductsForCustomer = async (req, res) => {
   try {
     const products = await Product.find(
-      { isActive: true, stock: { $gt: 0 } }
-    ).sort({ createdAt: -1 });
+      { isActive: true, stock: { $gt: 0 } },
+      {
+        name: 1,
+        category: 1,
+        mrp: 1,
+        sellingPrice: 1,
+        discountAmount: 1,
+        discountPercent: 1,
+        image: 1,
+        stock: 1,
+      }
+    );
 
-    const formatted = products.map(p => ({
-      _id: p._id,
-      name: p.name,
-      category: p.category,
-      image: p.image,
-      stock: p.stock,
-
-      // 🔥 SAFETY for old products
-      mrp: p.mrp || p.price || 0,
-      sellingPrice: p.sellingPrice || p.price || 0,
-      purchasePrice: p.purchasePrice || 0,
-      discountAmount: p.discountAmount || 0,
-      discountPercent: p.discountPercent || 0,
-    }));
-
-    res.json(formatted);
+    res.json(products);
   } catch (err) {
     res.status(500).json({ message: 'Failed to load products' });
   }
 };
+
