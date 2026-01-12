@@ -139,38 +139,28 @@ exports.getActiveProductsForCustomer = async (req, res) => {
   try {
     const products = await Product.find({ isActive: true });
 
-    const formatted = products.map(p => {
-      // If variants exist use them, else fallback to flat product
-      if (p.variants && p.variants.length > 0) {
-        return {
-          _id: p._id,
-          name: p.name,
-          category: p.category,
-          image: p.image,
-          variants: p.variants
-        };
-      } else {
-        return {
-          _id: p._id,
-          name: p.name,
-          category: p.category,
-          image: p.image,
-          variants: [
-            {
-              weight: "1 unit",
-              mrp: p.mrp,
-              price: p.sellingPrice,
-              stock: p.stock,
-              discountAmount: p.mrp - p.sellingPrice,
-              discountPercent: Math.round(((p.mrp - p.sellingPrice) / p.mrp) * 100)
-            }
-          ]
-        };
-      }
-    });
+    const formatted = products.map(p => ({
+      _id: p._id,
+      name: p.name,
+      nameTa: p.nameTa,
+      category: p.category,
+      categoryTa: p.categoryTa,
+      image: p.image,
+
+      variants: p.variants.map(v => ({
+        _id: v._id,
+        weight: v.weight,
+        mrp: v.mrp,
+        price: v.sellingPrice,           // 🔥 Flutter expects "price"
+        discountAmount: v.discountAmount,
+        discountPercent: v.discountPercent,
+        stock: v.stock
+      }))
+    }));
 
     res.json(formatted);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ message: "Failed to load products" });
   }
 };
