@@ -45,20 +45,7 @@ const variantSchema = new mongoose.Schema({
 /**
  * Auto calculate discount per variant
  */
-variantSchema.pre("save", function (next) {
-  if (this.mrp <= 0 || this.sellingPrice <= 0) {
-    this.discountAmount = 0;
-    this.discountPercent = 0;
-    return next();
-  }
 
-  this.discountAmount = this.mrp - this.sellingPrice;
-  this.discountPercent = Math.round(
-    (this.discountAmount / this.mrp) * 100
-  );
-
-  next();
-});
 
 /**
  * Main product schema
