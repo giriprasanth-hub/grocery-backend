@@ -1,55 +1,111 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
+/**
+ * Each product has multiple weight variants
+ * Example: 250g, 500g, 1kg
+ */
+const variantSchema = new mongoose.Schema({
+  weight: {
+    type: String,
+    required: true, // "250g", "500g", "1kg"
+  },
+
+  mrp: {
+    type: Number,
+    required: true,
+  },
+
+  sellingPrice: {
+    type: Number,
+    required: true,
+  },
+
+  purchasePrice: {
+    type: Number,
+    required: true,
+  },
+
+  stock: {
+    type: Number,
+    required: true,
+    min: 0,
+  },
+
+  discountAmount: {
+    type: Number,
+    default: 0,
+  },
+
+  discountPercent: {
+    type: Number,
+    default: 0,
+  },
+});
+
+/**
+ * Auto calculate discount per variant
+ */
+variantSchema.pre("save", function (next) {
+  if (this.mrp <= 0 || this.sellingPrice <= 0) {
+    this.discountAmount = 0;
+    this.discountPercent = 0;
+    return next();
+  }
+
+  this.discountAmount = this.mrp - this.sellingPrice;
+  this.discountPercent = Math.round(
+    (this.discountAmount / this.mrp) * 100
+  );
+
+  next();
+});
+
+/**
+ * Main product schema
+ */
 const productSchema = new mongoose.Schema(
   {
+    // English name
     name: {
       type: String,
       required: true,
       trim: true,
     },
 
+    // Tamil name
+    nameTa: {
+      type: String,
+      required: true,
+    },
+
+    // English category
     category: {
       type: String,
       required: true,
     },
 
-    // 💰 Pricing
-    mrp: {
-      type: Number,
+    // Tamil category
+    categoryTa: {
+      type: String,
       required: true,
     },
 
-    sellingPrice: {
-      type: Number,
-      required: true,
-    },
-
-    purchasePrice: {
-      type: Number,
-      required: true,
-    },
-
-    discountAmount: {
-      type: Number,
-      default: 0,
-    },
-
-    discountPercent: {
-      type: Number,
-      default: 0,
-    },
-
-    // 📦 Inventory
-    stock: {
-      type: Number,
-      default: 0,
-    },
-
+    // Image URL
     image: {
       type: String,
-      default: '',
+      default: "",
     },
 
+    // Weight variants
+    variants: {
+      type: [variantSchema],
+      validate: [
+        (v) => v.length > 0,
+        "At least one variant is required",
+      ],
+    },
+
+    // Soft delete
     isActive: {
       type: Boolean,
       default: true,
@@ -58,21 +114,4 @@ const productSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-productSchema.pre("save", function (next) {
-  if (this.mrp <= 0 || this.sellingPrice <= 0) {
-    this.discountAmount = 0;
-    this.discountPercent = 0;
-    return next();
-  }
-
-  this.discountAmount = this.mrp - this.sellingPrice;
-
-  this.discountPercent = Math.round(
-    (this.discountAmount / this.mrp) * 100
-  );
-
-  next();
-});
-
-
-module.exports = mongoose.model('Product', productSchema);
+module.exports = mongoose.model("Product", productSchema);

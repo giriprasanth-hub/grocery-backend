@@ -1,8 +1,12 @@
 const Product = require("../models/Product");
 
-// ============================
-// GET ALL ACTIVE PRODUCTS (ADMIN)
-// ============================
+/* ======================================================
+   ADMIN APIs
+====================================================== */
+
+/**
+ * GET ALL ACTIVE PRODUCTS (ADMIN)
+ */
 exports.getProducts = async (req, res) => {
   try {
     const products = await Product.find({ isActive: true });
@@ -12,9 +16,46 @@ exports.getProducts = async (req, res) => {
   }
 };
 
-// ============================
-// BULK ADD PRODUCTS
-// ============================
+
+/**
+ * ADD SINGLE PRODUCT (WITH VARIANTS)
+ */
+exports.addProduct = async (req, res) => {
+  try {
+    const {
+      name,
+      nameTa,
+      category,
+      categoryTa,
+      image,
+      variants
+    } = req.body;
+
+    if (!name || !nameTa || !category || !categoryTa || !variants || variants.length === 0) {
+      return res.status(400).json({ message: "Missing fields" });
+    }
+
+    const product = new Product({
+      name,
+      nameTa,
+      category,
+      categoryTa,
+      image,
+      variants
+    });
+
+    await product.save(); // 🔥 auto calculates discount for variants
+
+    res.status(201).json(product);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to add product", error: error.message });
+  }
+};
+
+
+/**
+ * BULK ADD PRODUCTS
+ */
 exports.addBulkProducts = async (req, res) => {
   try {
     const products = req.body;
@@ -23,177 +64,99 @@ exports.addBulkProducts = async (req, res) => {
       return res.status(400).json({ message: "Invalid product array" });
     }
 
-    const formattedProducts = products.map((p) => {
-      if (
-        !p.name ||
-        !p.category ||
-        p.mrp == null ||
-        p.sellingPrice == null ||
-        p.purchasePrice == null ||
-        p.stock == null
-      ) {
-        throw new Error("Missing fields in one or more products");
-      }
-
-      return {
-        name: p.name,
-        category: p.category,
-        mrp: p.mrp,
-        sellingPrice: p.sellingPrice,
-        purchasePrice: p.purchasePrice,
-        stock: p.stock,
-        image: p.image || "",
-        isActive: true,
-      };
-    });
-
-    for (const p of formattedProducts) {
-  const product = new Product(p);
-  await product.save(); // this runs pre('save') hook
-}
+    for (const p of products) {
+      const product = new Product(p);
+      await product.save(); // triggers variant discount hook
+    }
 
     res.status(201).json({
       message: "Bulk products added successfully",
-      count: formattedProducts.length,
+      count: products.length
     });
   } catch (error) {
     res.status(500).json({
       message: "Bulk insert failed",
-      error: error.message,
+      error: error.message
     });
   }
 };
 
-// ============================
-// ADD SINGLE PRODUCT (ADMIN)
-// ============================
-exports.addProduct = async (req, res) => {
-  try {
-    const { name, category, mrp, sellingPrice, purchasePrice, stock, image } =
-      req.body;
 
-    if (
-      !name ||
-      !category ||
-      mrp == null ||
-      sellingPrice == null ||
-      purchasePrice == null ||
-      stock == null
-    ) {
-      return res.status(400).json({ message: "Missing fields" });
-    }
-
-    const product = await Product.create({
-      name,
-      category,
-      mrp,
-      sellingPrice,
-      purchasePrice,
-      stock,
-      image: image || "",
-    });
-
-    res.status(201).json(product);
-  } catch (err) {
-    res.status(500).json({ message: "Failed to add product" });
-  }
-};
-
-// ============================
-// LOW STOCK COUNT
-// ============================
-exports.getLowStockCount = async (req, res) => {
-  try {
-    const count = await Product.countDocuments({ stock: { $lte: 5 } });
-    res.json({ count });
-  } catch {
-    res.status(500).json({ message: "Failed to fetch low stock count" });
-  }
-};
-
-// ============================
-// DELETE PRODUCT (SOFT DELETE)
-// ============================
-exports.deleteProduct = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    await Product.findByIdAndUpdate(id, { isActive: false });
-
-    res.json({ message: "Product removed successfully" });
-  } catch (error) {
-    res.status(500).json({ message: "Failed to delete product" });
-  }
-};
-
-// ============================
-// UPDATE PRODUCT (ADMIN)
-// ============================
+/**
+ * UPDATE PRODUCT
+ */
 exports.updateProduct = async (req, res) => {
   try {
     const { id } = req.params;
-    const { mrp, sellingPrice, purchasePrice, stock } = req.body;
-
-    if (mrp == null || sellingPrice == null || purchasePrice == null || stock == null) {
-      return res.status(400).json({
-        message: "MRP, selling price, purchase price and stock are required",
-      });
-    }
 
     const product = await Product.findById(id);
+    if (!product) return res.status(404).json({ message: "Product not found" });
 
-    if (!product) {
-      return res.status(404).json({ message: "Product not found" });
-    }
+    Object.assign(product, req.body);
+    await product.save(); // 🔥 recalculates discounts
 
-    product.mrp = mrp;
-    product.sellingPrice = sellingPrice;
-    product.purchasePrice = purchasePrice;
-    product.stock = stock;
-
-    await product.save(); // will auto recalc discount
-
-    res.json({
-      message: "Product updated successfully",
-      product,
-    });
+    res.json({ message: "Product updated", product });
   } catch (error) {
-    res.status(500).json({
-      message: "Failed to update product",
-    });
+    res.status(500).json({ message: "Update failed" });
   }
 };
 
-// ============================
-// CUSTOMER PRODUCTS (FLUTTER)
-// ============================
+
+/**
+ * SOFT DELETE PRODUCT
+ */
+exports.deleteProduct = async (req, res) => {
+  try {
+    await Product.findByIdAndUpdate(req.params.id, { isActive: false });
+    res.json({ message: "Product removed" });
+  } catch {
+    res.status(500).json({ message: "Delete failed" });
+  }
+};
+
+
+/**
+ * LOW STOCK COUNT (All variants)
+ */
+exports.getLowStockCount = async (req, res) => {
+  try {
+    const products = await Product.find({ "variants.stock": { $lte: 5 } });
+    res.json({ count: products.length });
+  } catch {
+    res.status(500).json({ message: "Failed to fetch low stock" });
+  }
+};
+
+
+/* ======================================================
+   CUSTOMER APIs (FLUTTER)
+====================================================== */
+
+/**
+ * CUSTOMER PRODUCTS API
+ */
 exports.getActiveProductsForCustomer = async (req, res) => {
   try {
     const products = await Product.find(
-      { isActive: true, stock: { $gt: 0 } },
-      {
-        name: 1,
-        category: 1,
-        mrp: 1,
-        sellingPrice: 1,
-        discountAmount: 1,
-        discountPercent: 1,
-        image: 1,
-        stock: 1,
-      }
+      { isActive: true, "variants.stock": { $gt: 0 } }
     );
 
-    const formatted = products.map((p) => ({
+    const formatted = products.map(p => ({
       _id: p._id,
       name: p.name,
+      nameTa: p.nameTa,
       category: p.category,
+      categoryTa: p.categoryTa,
       image: p.image,
-      stock: p.stock,
 
-      mrp: p.mrp,
-      price: p.sellingPrice, // Flutter uses `price`
-      discountAmount: p.discountAmount,
-      discountPercent: p.discountPercent,
+      variants: p.variants.map(v => ({
+        weight: v.weight,
+        mrp: v.mrp,
+        price: v.sellingPrice,
+        stock: v.stock,
+        discountAmount: v.discountAmount,
+        discountPercent: v.discountPercent
+      }))
     }));
 
     res.json(formatted);
