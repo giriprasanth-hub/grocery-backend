@@ -139,24 +139,52 @@ exports.getActiveProductsForCustomer = async (req, res) => {
   try {
     const products = await Product.find({ isActive: true });
 
-    const formatted = products.map(p => ({
-      _id: p._id,
-      name: p.name,
-      nameTa: p.nameTa,
-      category: p.category,
-      categoryTa: p.categoryTa,
-      image: p.image,
+    const formatted = products.map(p => {
+      // 🔥 If variants missing, build from old flat fields
+      let variants = [];
 
-      variants: p.variants.map(v => ({
-        _id: v._id,
-        weight: v.weight,
-        mrp: v.mrp,
-        price: v.sellingPrice,           // 🔥 Flutter expects "price"
-        discountAmount: v.discountAmount,
-        discountPercent: v.discountPercent,
-        stock: v.stock
-      }))
-    }));
+      if (p.variants && p.variants.length > 0) {
+        variants = p.variants.map(v => ({
+          _id: v._id,
+          weight: v.weight,
+          mrp: v.mrp,
+          price: v.sellingPrice,
+          discountAmount: v.discountAmount,
+          discountPercent: v.discountPercent,
+          stock: v.stock
+        }));
+      } else {
+        // 🛠 convert old product → variant
+        const mrp = p.mrp || 0;
+        const price = p.sellingPrice || 0;
+        const discountAmount = mrp - price;
+        const discountPercent = mrp > 0
+          ? Math.round((discountAmount / mrp) * 100)
+          : 0;
+
+        variants = [
+          {
+            _id: p._id + "_1kg",
+            weight: "1kg",
+            mrp,
+            price,
+            discountAmount,
+            discountPercent,
+            stock: p.stock
+          }
+        ];
+      }
+
+      return {
+        _id: p._id,
+        name: p.name,
+        nameTa: p.nameTa || p.name,       // fallback
+        category: p.category,
+        categoryTa: p.categoryTa || p.category,
+        image: p.image,
+        variants
+      };
+    });
 
     res.json(formatted);
   } catch (err) {
