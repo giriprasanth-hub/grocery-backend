@@ -182,3 +182,30 @@ exports.getActiveProductsForCustomer = async (req, res) => {
     res.status(500).json({ message: "Failed to load products" });
   }
 };
+
+
+const Category = require("../models/Category");
+const Product = require("../models/Product");
+
+exports.syncCategoriesFromProducts = async (req, res) => {
+  try {
+    const products = await Product.find({}, "category");
+
+    const uniqueCategories = [...new Set(products.map(p => p.category))];
+
+    for (const name of uniqueCategories) {
+      await Category.findOneAndUpdate(
+        { name },
+        { name, isActive: true },
+        { upsert: true }
+      );
+    }
+
+    res.json({
+      message: "Categories synced successfully",
+      categories: uniqueCategories
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Sync failed", error: err.message });
+  }
+};
