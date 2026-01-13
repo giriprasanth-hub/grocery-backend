@@ -9,7 +9,7 @@ const {
   deleteProduct,
   updateProduct,
   getActiveProductsForCustomer,
-  syncCategoriesFromProducts
+  syncCategoriesFromProducts,
 } = require('../controllers/productController');
 
 // Routes

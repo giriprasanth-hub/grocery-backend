@@ -184,8 +184,7 @@ exports.getActiveProductsForCustomer = async (req, res) => {
 };
 
 
-const Category = require("../models/Category");
-const Product = require("../models/Product");
+
 
 exports.syncCategoriesFromProducts = async (req, res) => {
   try {
