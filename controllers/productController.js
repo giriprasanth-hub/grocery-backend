@@ -1,4 +1,6 @@
 const Product = require("../models/Product");
+const Category = require("../models/Category");
+
 
 /* ======================================================
    ADMIN APIs
@@ -22,18 +24,18 @@ exports.getProducts = async (req, res) => {
  */
 exports.addProduct = async (req, res) => {
   try {
-    const {
-      name,
-      nameTa,
-      category,
-      categoryTa,
-      image,
-      variants
-    } = req.body;
+    const { name, nameTa, category, categoryTa, image, variants } = req.body;
 
     if (!name || !nameTa || !category || !categoryTa || !variants || variants.length === 0) {
       return res.status(400).json({ message: "Missing fields" });
     }
+
+    // 🔥 Auto create category if not exists
+    await Category.findOneAndUpdate(
+      { name: category },
+      { name: category, isActive: true },
+      { upsert: true }
+    );
 
     const product = new Product({
       name,
@@ -44,13 +46,14 @@ exports.addProduct = async (req, res) => {
       variants
     });
 
-    await product.save(); // 🔥 auto calculates discount for variants
+    await product.save();
 
     res.status(201).json(product);
   } catch (error) {
     res.status(500).json({ message: "Failed to add product", error: error.message });
   }
 };
+
 
 
 /**
@@ -65,16 +68,16 @@ exports.addBulkProducts = async (req, res) => {
     }
 
     for (const p of products) {
-      if (
-        !p.name ||
-        !p.nameTa ||
-        !p.category ||
-        !p.categoryTa ||
-        !p.variants ||
-        !Array.isArray(p.variants)
-      ) {
+      if (!p.name || !p.nameTa || !p.category || !p.categoryTa || !Array.isArray(p.variants)) {
         throw new Error("Missing fields in one or more products");
       }
+
+      // 🔥 Auto-create category
+      await Category.findOneAndUpdate(
+        { name: p.category },
+        { name: p.category, isActive: true },
+        { upsert: true }
+      );
 
       const product = new Product({
         name: p.name,
@@ -85,7 +88,7 @@ exports.addBulkProducts = async (req, res) => {
         variants: p.variants
       });
 
-      await product.save();   // variant pre-save hooks run here
+      await product.save();
     }
 
     res.status(201).json({ message: "Bulk products added successfully" });
@@ -96,6 +99,7 @@ exports.addBulkProducts = async (req, res) => {
     });
   }
 };
+
 
 
 /**
