@@ -65,14 +65,30 @@ exports.addBulkProducts = async (req, res) => {
     }
 
     for (const p of products) {
-      const product = new Product(p);
-      await product.save(); // triggers variant discount hook
+      if (
+        !p.name ||
+        !p.nameTa ||
+        !p.category ||
+        !p.categoryTa ||
+        !p.variants ||
+        !Array.isArray(p.variants)
+      ) {
+        throw new Error("Missing fields in one or more products");
+      }
+
+      const product = new Product({
+        name: p.name,
+        nameTa: p.nameTa,
+        category: p.category,
+        categoryTa: p.categoryTa,
+        image: p.image || "",
+        variants: p.variants
+      });
+
+      await product.save();   // variant pre-save hooks run here
     }
 
-    res.status(201).json({
-      message: "Bulk products added successfully",
-      count: products.length
-    });
+    res.status(201).json({ message: "Bulk products added successfully" });
   } catch (error) {
     res.status(500).json({
       message: "Bulk insert failed",
@@ -139,52 +155,22 @@ exports.getActiveProductsForCustomer = async (req, res) => {
   try {
     const products = await Product.find({ isActive: true });
 
-    const formatted = products.map(p => {
-      // 🔥 If variants missing, build from old flat fields
-      let variants = [];
-
-      if (p.variants && p.variants.length > 0) {
-        variants = p.variants.map(v => ({
-          _id: v._id,
-          weight: v.weight,
-          mrp: v.mrp,
-          price: v.sellingPrice,
-          discountAmount: v.discountAmount,
-          discountPercent: v.discountPercent,
-          stock: v.stock
-        }));
-      } else {
-        // 🛠 convert old product → variant
-        const mrp = p.mrp || 0;
-        const price = p.sellingPrice || 0;
-        const discountAmount = mrp - price;
-        const discountPercent = mrp > 0
-          ? Math.round((discountAmount / mrp) * 100)
-          : 0;
-
-        variants = [
-          {
-            _id: p._id + "_1kg",
-            weight: "1kg",
-            mrp,
-            price,
-            discountAmount,
-            discountPercent,
-            stock: p.stock
-          }
-        ];
-      }
-
-      return {
-        _id: p._id,
-        name: p.name,
-        nameTa: p.nameTa || p.name,       // fallback
-        category: p.category,
-        categoryTa: p.categoryTa || p.category,
-        image: p.image,
-        variants
-      };
-    });
+    const formatted = products.map(p => ({
+      _id: p._id,
+      name: p.name,
+      nameTa: p.nameTa,
+      category: p.category,
+      categoryTa: p.categoryTa,
+      image: p.image,
+      variants: p.variants.map(v => ({
+        weight: v.weight,
+        mrp: v.mrp,
+        price: v.sellingPrice,
+        discountAmount: v.discountAmount,
+        discountPercent: v.discountPercent,
+        stock: v.stock
+      }))
+    }));
 
     res.json(formatted);
   } catch (err) {
