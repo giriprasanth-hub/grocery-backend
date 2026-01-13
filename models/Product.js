@@ -29,7 +29,7 @@ const productSchema = new mongoose.Schema(
 );
 
 // 🔥 CALCULATE DISCOUNT FOR EACH VARIANT SAFELY
-productSchema.pre("save", function (next) {
+productSchema.pre("save", function () {
   this.variants.forEach(v => {
     if (v.mrp > 0 && v.sellingPrice > 0) {
       v.discountAmount = v.mrp - v.sellingPrice;
@@ -39,8 +39,7 @@ productSchema.pre("save", function (next) {
       v.discountPercent = 0;
     }
   });
-
-  next();
 });
+
 
 module.exports = mongoose.model("Product", productSchema);
