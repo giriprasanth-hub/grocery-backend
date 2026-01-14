@@ -188,21 +188,38 @@ exports.getActiveProductsForCustomer = async (req, res) => {
 
 exports.syncCategoriesFromProducts = async (req, res) => {
   try {
-    const products = await Product.find({}, "category");
+    // Fetch products with their category and image
+    const products = await Product.find({}, "category image");
 
-    const uniqueCategories = [...new Set(products.map(p => p.category))];
+    // 1. Map categories to a product image (to use as a default)
+    const categoryImageMap = {}; 
+    const uniqueCategories = new Set();
 
+    products.forEach(p => {
+      uniqueCategories.add(p.category);
+      // If we haven't found an image for this category yet, grab this product's image
+      if (!categoryImageMap[p.category] && p.image) {
+        categoryImageMap[p.category] = p.image;
+      }
+    });
+
+    // 2. Update or Create Categories
     for (const name of uniqueCategories) {
       await Category.findOneAndUpdate(
         { name },
-        { name, isActive: true },
+        { 
+          name, 
+          isActive: true,
+          // 💡 ONLY set the image if it doesn't exist (don't overwrite custom banners)
+          $setOnInsert: { image: categoryImageMap[name] || "" } 
+        },
         { upsert: true }
       );
     }
 
     res.json({
       message: "Categories synced successfully",
-      categories: uniqueCategories
+      categories: [...uniqueCategories]
     });
   } catch (err) {
     res.status(500).json({ message: "Sync failed", error: err.message });
