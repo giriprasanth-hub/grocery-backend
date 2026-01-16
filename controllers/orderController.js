@@ -3,43 +3,47 @@ const Product = require('../models/Product');
 
 /**
  * CREATE ORDER
- * ❌ NO STOCK REDUCTION HERE
+ * ✅ REDUCE STOCK HERE (ATOMICALLY)
+ * ✅ HANDLES VARIANTS CORRECTLY
  */
 exports.createOrder = async (req, res) => {
   try {
-    const { customerName, phone, address, items, totalAmount } = req.body;
+    const { customerName, phone, address, items, totalAmount, paymentMethod } = req.body;
 
     if (!customerName || !phone || !address || !items || !totalAmount) {
       return res.status(400).json({ message: 'Missing order details' });
     }
 
-    // 🔐 ATOMIC STOCK CHECK + RESERVE
+    // 🔐 ATOMIC STOCK CHECK + RESERVE FOR VARIANTS
     for (const item of items) {
+      // Find the Product AND the specific Variant with enough stock
       const updated = await Product.findOneAndUpdate(
         {
-          _id: item.productId,
-          stock: { $gte: item.quantity }, // 🔥 ENSURES ENOUGH STOCK
+          _id: item.productId, 
+          "variants._id": item.variantId, // 🎯 Target specific variant
+          "variants.stock": { $gte: item.quantity } // 🔥 Check VARIANT stock
         },
         {
-          $inc: { stock: -item.quantity }, // 🔒 RESERVE STOCK
+          $inc: { "variants.$.stock": -item.quantity } // 🔒 Reduce VARIANT stock
         },
         { new: true }
       );
 
       if (!updated) {
         return res.status(400).json({
-          message: `Insufficient stock for ${item.name}`,
+          message: `Insufficient stock for ${item.name} (${item.weight})`,
         });
       }
     }
 
-    // ✅ Create order AFTER stock is reserved
+    // ✅ Create order with Payment Method
     const order = new Order({
       customerName,
       phone,
       address,
-      items,
+      items, // Contains variantId from Flutter
       totalAmount,
+      paymentMethod: paymentMethod || 'COD', // 💳 Save Payment Method
       status: 'Pending',
     });
 
@@ -50,7 +54,7 @@ exports.createOrder = async (req, res) => {
       orderId: order._id,
     });
   } catch (error) {
-    console.error(error);
+    console.error("Order Create Error:", error);
     res.status(500).json({
       message: 'Failed to place order',
     });
@@ -70,10 +74,10 @@ exports.getOrders = async (req, res) => {
   }
 };
 
+
 /**
  * UPDATE ORDER STATUS (ADMIN)
- * ✅ Reduce stock ONLY on Delivered
- * ✅ Restore stock on Returned / Delivery Failed
+ * ✅ Restore stock on Returned / Delivery Failed / Cancelled
  */
 exports.updateOrderStatus = async (req, res) => {
   try {
@@ -91,51 +95,44 @@ exports.updateOrderStatus = async (req, res) => {
     ];
 
     if (!allowedStatuses.includes(status)) {
-      return res.status(400).json({
-        message: 'Invalid status value',
-      });
+      return res.status(400).json({ message: 'Invalid status value' });
     }
 
     const order = await Order.findById(orderId);
 
     if (!order) {
-      return res.status(404).json({
-        message: 'Order not found',
-      });
+      return res.status(404).json({ message: 'Order not found' });
     }
 
     const previousStatus = order.status;
 
     // 🔒 Prevent duplicate delivery processing
     if (previousStatus === 'Delivered' && status === 'Delivered') {
-      return res.status(400).json({
-        message: 'Order already delivered',
-      });
+      return res.status(400).json({ message: 'Order already delivered' });
     }
 
-    /**
-     * 📦 REDUCE STOCK ONLY WHEN DELIVERED
-     */
-    if (status === 'Delivered' && previousStatus !== 'Delivered') {
-      for (const item of order.items) {
-        await Product.findByIdAndUpdate(
-          item.productId,
-          { $inc: { stock: -item.quantity } }
-        );
-      }
-    }
+    // ❌ REMOVED "Reduce stock on Delivered" block. 
+    // REASON: We already reduced it in createOrder. Doing it here would double-count.
 
     /**
-     * 🔁 RESTORE STOCK ON RETURN / DELIVERY FAILED
+     * 🔁 RESTORE STOCK ON FAILURE / CANCELLATION
+     * (Returned, Delivery Failed, or Cancelled)
      */
-    if (
-      ['Returned', 'Delivery Failed'].includes(status) &&
-      previousStatus === 'Delivered'
-    ) {
+    const failureStatuses = ['Returned', 'Delivery Failed', 'Cancelled'];
+    
+    // If moving TO a failure status, FROM a non-failure status -> Restore Stock
+    if (failureStatuses.includes(status) && !failureStatuses.includes(previousStatus)) {
+      console.log(`Restoring stock for Order ${orderId}`);
+      
       for (const item of order.items) {
-        await Product.findByIdAndUpdate(
-          item.productId,
-          { $inc: { stock: item.quantity } }
+        await Product.findOneAndUpdate(
+          { 
+            _id: item.productId, 
+            "variants._id": item.variantId 
+          },
+          { 
+            $inc: { "variants.$.stock": item.quantity } // ➕ Give stock back
+          }
         );
       }
     }
@@ -155,25 +152,24 @@ exports.updateOrderStatus = async (req, res) => {
   }
 };
 
+
 /**
  * GET ORDERS BY PHONE (CUSTOMER)
  */
 exports.getOrdersByPhone = async (req, res) => {
   try {
     const { phone } = req.params;
-
-    const orders = await Order.find({ phone }).sort({
-      createdAt: -1,
-    });
-
+    const orders = await Order.find({ phone }).sort({ createdAt: -1 });
     res.json(orders);
   } catch (error) {
-    res.status(500).json({
-      message: 'Failed to fetch order history',
-    });
+    res.status(500).json({ message: 'Failed to fetch order history' });
   }
 };
 
+
+/**
+ * GET ORDERS BY DATE (ADMIN REPORT)
+ */
 exports.getOrdersByDate = async (req, res) => {
   try {
     const { date } = req.params;
@@ -190,8 +186,6 @@ exports.getOrdersByDate = async (req, res) => {
 
     res.json(orders);
   } catch (err) {
-    res.status(500).json({
-      message: 'Failed to fetch orders by date',
-    });
+    res.status(500).json({ message: 'Failed to fetch orders by date' });
   }
 };
